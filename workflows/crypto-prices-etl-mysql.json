@@ -1,0 +1,177 @@
+{
+  "name": "Basic Data Pipeline - Crypto Prices ETL (MySQL)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "1d25847d-8170-439d-839d-159181540445",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        448,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "url": "https://api.coingecko.com/api/v3/coins/markets",
+        "sendQuery": true,
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "vs_currency",
+              "value": "usd"
+            },
+            {
+              "name": "order",
+              "value": "market_cap_desc"
+            },
+            {
+              "name": "per_page",
+              "value": "10"
+            },
+            {
+              "name": "page",
+              "value": "1"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "b48b7ed1-04a0-46a1-b1b1-60c265625ed5",
+      "name": "Extract - Fetch Crypto Data",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        864,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "// Transform: keep only relevant fields, add timestamp, skip malformed entries\nconst timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ');\n\nreturn items\n  .filter(item => item.json && item.json.id)\n  .map(item => {\n    const d = item.json;\n    return {\n      json: {\n        id: d.id,\n        symbol: d.symbol ? d.symbol.toUpperCase() : null,\n        name: d.name,\n        price_usd: d.current_price,\n        market_cap: d.market_cap,\n        price_change_24h_pct: d.price_change_percentage_24h,\n        fetched_at: timestamp\n      }\n    };\n  });"
+      },
+      "id": "39a72931-c86e-49af-b169-4424c7426106",
+      "name": "Transform - Clean Fields",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1072,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "CREATE TABLE IF NOT EXISTS crypto_prices (\n  row_id INT AUTO_INCREMENT PRIMARY KEY,\n  id VARCHAR(100),\n  symbol VARCHAR(20),\n  name VARCHAR(100),\n  price_usd DECIMAL(20,8),\n  market_cap BIGINT,\n  price_change_24h_pct DECIMAL(10,4),\n  fetched_at DATETIME\n);",
+        "options": {}
+      },
+      "id": "7dcd7db8-3b49-4389-b204-b1884f99df46",
+      "name": "Ensure Table Exists",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        656,
+        -80
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "4xCk3fcIgPqfg72z",
+          "name": "MySQL account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "table": {
+          "value": "crypto_prices",
+          "mode": "list"
+        },
+        "options": {}
+      },
+      "id": "6fbb1714-a988-494e-8e57-87070fc2b263",
+      "name": "Load - Insert into MySQL",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.4,
+      "position": [
+        1280,
+        -80
+      ],
+      "credentials": {
+        "mySql": {
+          "id": "4xCk3fcIgPqfg72z",
+          "name": "MySQL account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Ensure Table Exists",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract - Fetch Crypto Data": {
+      "main": [
+        [
+          {
+            "node": "Transform - Clean Fields",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Ensure Table Exists": {
+      "main": [
+        [
+          {
+            "node": "Extract - Fetch Crypto Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Transform - Clean Fields": {
+      "main": [
+        [
+          {
+            "node": "Load - Insert into MySQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "43329265-d19d-46f8-aadc-0c40b9b7fd7e",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "abef66df6d6c9cbfdfe72138250748db4ed79fbfcf7e89fd5a89a840aa290902"
+  },
+  "nodeGroups": [],
+  "id": "9tPoJg1GvrON4GEd",
+  "tags": []
+}
